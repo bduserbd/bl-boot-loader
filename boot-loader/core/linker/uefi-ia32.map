@@ -1,0 +1,29 @@
+{
+global: *;
+local:
+	__bl_image_start;
+	__bl_efi_pe_end;
+
+	__bl_text_start;
+	__bl_text_raw_size;
+	__bl_text_size;
+
+	__bl_reloc_start;
+	__bl_reloc_raw_size;
+
+	__bl_data_start;
+
+	__bl_hash_start;
+	__bl_hash_end;
+
+	__bl_dynsym_start;
+	__bl_dynsym_end;
+
+	__bl_dynstr_start;
+
+	__bl_data_raw_size;
+	__bl_data_size;
+
+	__bl_image_size;
+};
+

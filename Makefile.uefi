@@ -1,0 +1,90 @@
+# UEFI image definitions.
+
+SECTOR_SIZE := 512
+IMAGE_SECTORS := 32768
+
+# FAT system partition.
+FAT_TARGET := fat.img
+FAT_SECTORS := 2048
+FAT_START := 2048
+FAT_END := $(shell expr $(FAT_START) + $(FAT_SECTORS))
+
+# FAT test partition.
+FAT1_TARGET = fat1.img
+FAT1_SECTORS := 2048
+FAT1_START := 8192
+FAT1_END := $(shell expr $(FAT1_START) + $(FAT1_SECTORS))
+
+# Include modules.
+MODULES += gpt
+MODULES += fat
+MODULES += pata
+MODULES += gop
+MODULES += usb-keyboard
+MODULES += uhci ohci ehci xhci
+
+BOOTLOADER_MODULES := $(addprefix $(BOOTLOADER)/modules/objects/,$(patsubst %,%.o,$(MODULES)))
+
+# Build images.
+define copy_modules
+	mmd -i $(1) ::/AAA
+	mcopy -i $(1) fff ::/AAA/FFF
+	mmd -i $(1) ::/AAA/BBB
+	mmd -i $(1) ::/AAA/CCC
+	mmd -i $(1) ::/AAA/DDD
+	mmd -i $(1) ::/AAA/CCC/EEE
+	mcopy -i $(1) fff ::/AAA/CCC/EEE/FFF
+
+	mcopy -i $(1) $(BOOTLOADER)/$(BOOTLOADER_TARGET) ::BL.EFI ;
+
+	$(PYTHON) $(TOOLS)/bl-modules.py -m $(TOOLS)/BLMODLST -l $(BOOTLOADER_MODULES);
+        mcopy -i $(1) $(TOOLS)/BLMODLST ::BLMODLST ;
+endef
+
+define build_raw_image
+	dd if=/dev/zero of=$(1) bs=$(SECTOR_SIZE) count=$(2);
+endef
+
+define build_fat12_image
+	$(call build_raw_image,$(1),$(2))
+	mkfs.vfat -F 12 -n UEFI-TOOLS $(1);
+endef
+
+define build_fat16_image
+	$(call build_raw_image,$(1),$(2))
+	mkfs.vfat -F 16 -n UEFI-TOOLS $(1);
+endef
+
+define build_fat32_image
+	$(call build_raw_image,$(1),$(2))
+	mkfs.vfat -F 32 -n UEFI-TOOLS $(1);
+endef
+
+define copy_fs
+	dd if=$(1) of=$(2) bs=$(SECTOR_SIZE) seek=$(3) count=$(4) conv=notrunc; 
+endef
+
+define build_image
+	$(call build_raw_image,$(1),$(IMAGE_SECTORS))
+
+	# Prepate GPT.
+        parted $(1) -s "mktable gpt";
+        parted $(1) -s "mkpart p $(FAT_START)s $(FAT_END)s";
+        parted $(1) -s "mkpart p $(FAT1_START)s $(FAT1_END)s";
+        parted $(1) -s "toggle 2 boot";
+        parted $(1) -s "name 1 UEFI";
+        parted $(1) -s "name 2 UEFI";
+
+	# FAT system partition.
+	$(call build_fat12_image,$(FAT_TARGET),$(FAT_SECTORS))
+
+	# More file systems.
+	$(call build_fat12_image,$(FAT1_TARGET),$(FAT1_SECTORS))
+
+	$(call copy_modules,$(FAT_TARGET))
+
+	# Copy file systems.
+	$(call copy_fs,$(FAT_TARGET),$(1),$(FAT_START),$(FAT_SECTORS))
+	$(call copy_fs,$(FAT1_TARGET),$(1),$(FAT1_START),$(FAT1_SECTORS))
+endef
+

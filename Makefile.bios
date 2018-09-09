@@ -1,0 +1,50 @@
+# BIOS image definitions.
+
+SECTOR_SIZE := 512
+IMAGE_SECTORS := 16384
+
+# Additional targets.
+LOADER_TARGET = loader.img
+BL_LOADER_TARGET = bl-loader.img
+
+export LOADER_TARGET BL_LOADER_TARGET
+
+# Include modules.
+MODULES += mbr
+MODULES += ext #ntfs #fat
+MODULES += ahci #usb-scsi #pata
+MODULES += vbe
+MODULES += #usb-keyboard
+MODULES += #xhci #uhci #ohci #ehci
+
+BOOTLOADER_MODULES := $(addprefix $(BOOTLOADER)/modules/objects/,$(patsubst %,%.o,$(MODULES)))
+
+define copy_modules
+	$(PYTHON) $(TOOLS)/bl-modules.py -m $(TOOLS)/BLMODLST -l $(BOOTLOADER_MODULES)
+	cat $(TOOLS)/BLMODLST >> $(1)
+endef
+
+define build_raw_image
+	dd if=/dev/zero of=$(1) bs=$(SECTOR_SIZE) count=$(2)
+endef
+
+define copy_mbr
+	dd if=$(LOADER)/$(LOADER_TARGET) of=$(1) conv=notrunc
+endef
+
+define copy_bl_loader
+	dd if=$(LOADER)/$(BL_LOADER_TARGET) of=$(1) bs=$(SECTOR_SIZE) seek=15 conv=notrunc
+endef
+
+define copy_bootloader
+	$(call copy_modules,$(BOOTLOADER)/$(BOOTLOADER_TARGET))
+	dd if=$(BOOTLOADER)/$(BOOTLOADER_TARGET) of=$(1) bs=$(SECTOR_SIZE) seek=16 conv=notrunc
+endef
+
+define build_image
+	$(call build_raw_image,$(1),$(IMAGE_SECTORS))
+	$(call copy_mbr,$(1))
+	$(call copy_bl_loader,$(1))
+	$(call copy_bootloader,$(1))
+endef
+

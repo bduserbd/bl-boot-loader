@@ -1,0 +1,5 @@
+{
+global: *;
+local: bl_main;
+};
+

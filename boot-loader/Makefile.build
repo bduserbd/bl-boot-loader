@@ -1,0 +1,16 @@
+# Building objects.
+CFLAGS = $(BUILD_CFLAGS) $(CFLAGS_OPT)
+
+.PHONY := _all
+_all: build-objects
+
+build-objects: $(OBJS)
+
+%.o:%.S
+	$(V)echo '  AS ' $(shell basename $(CURDIR))/$@
+	$(V)$(CC) $(CFLAGS) -c $^ -o $(OBJDIR)$(notdir $@)
+
+%.o:%.c
+	$(V)echo '  CC ' $(shell basename $(CURDIR))/$@
+	$(V)$(CC) $(CFLAGS) -c $^ -o $(OBJDIR)$(notdir $@)
+
